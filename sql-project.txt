@@ -1,0 +1,430 @@
+DROP DATABASE IF EXISTS banking_management;
+CREATE DATABASE banking_management;
+USE banking_management;
+
+CREATE TABLE branches (
+    branch_id INT AUTO_INCREMENT PRIMARY KEY,
+    branch_name VARCHAR(100) NOT NULL,
+    ifsc_code VARCHAR(11) NOT NULL UNIQUE,
+    city VARCHAR(80) NOT NULL
+);
+
+CREATE TABLE customers (
+    customer_id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(120) NOT NULL,
+    phone VARCHAR(20) UNIQUE,
+    email VARCHAR(120) UNIQUE,
+    address VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE employees (
+    employee_id INT AUTO_INCREMENT PRIMARY KEY,
+    branch_id INT NOT NULL,
+    employee_name VARCHAR(120) NOT NULL,
+    job_title VARCHAR(60) NOT NULL,
+    phone VARCHAR(20),
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id)
+);
+
+CREATE TABLE accounts (
+    account_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    branch_id INT NOT NULL,
+    account_number VARCHAR(20) NOT NULL UNIQUE,
+    account_type ENUM('Savings','Current') NOT NULL,
+    balance DECIMAL(14,2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
+    status ENUM('Active','Frozen','Closed') NOT NULL DEFAULT 'Active',
+    opened_on DATE NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id)
+);
+
+CREATE TABLE transactions (
+    transaction_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    transaction_type ENUM('Deposit','Withdrawal','Transfer In','Transfer Out') NOT NULL,
+    amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+    transaction_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reference_note VARCHAR(255),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id),
+    INDEX idx_transaction_time (transaction_time),
+    INDEX idx_transaction_account (account_id)
+);
+
+INSERT INTO branches (branch_name, ifsc_code, city) VALUES
+('Central City Branch', 'DEMO0001001', 'Vijayawada'),
+('Coastal Branch', 'DEMO0001002', 'Visakhapatnam');
+
+INSERT INTO customers (full_name, phone, email, address) VALUES
+('Ananya Rao', '9000001101', 'ananya@example.test', 'Vijayawada'),
+('Rahul Kumar', '9000001102', 'rahul@example.test', 'Visakhapatnam'),
+('Meera Devi', '9000001103', 'meera@example.test', 'Rajahmundry');
+
+INSERT INTO employees (branch_id, employee_name, job_title, phone) VALUES
+(1, 'S. Priya', 'Branch Manager', '9000002101'),
+(1, 'K. Arjun', 'Bank Officer', '9000002102'),
+(2, 'R. Naveen', 'Bank Officer', '9000002103');
+
+INSERT INTO accounts
+(customer_id, branch_id, account_number, account_type, balance, status, opened_on) VALUES
+(1, 1, '100000000001', 'Savings', 15000.00, 'Active', '2025-02-10'),
+(2, 2, '100000000002', 'Savings', 8200.00, 'Active', '2025-05-18'),
+(3, 1, '200000000003', 'Current', 25000.00, 'Active', '2024-11-03'),
+(1, 1, '100000000004', 'Savings', 3000.00, 'Frozen', '2026-01-12');
+
+INSERT INTO transactions
+(account_id, transaction_type, amount, transaction_time, reference_note) VALUES
+(1, 'Deposit', 5000.00, '2026-10-01 09:30:00', 'Opening demo deposit'),
+(1, 'Withdrawal', 1000.00, '2026-10-03 14:10:00', 'ATM cash withdrawal'),
+(2, 'Deposit', 2000.00, '2026-10-05 11:00:00', 'Salary deposit'),
+(3, 'Deposit', 10000.00, '2026-10-07 10:15:00', 'Business deposit');
+
+INSERT INTO transfers
+(from_account_id, to_account_id, amount, transfer_time, status, reference_note) VALUES
+(1, 2, 500.00, '2026-10-08 16:20:00', 'Completed', 'Demo transfer');
+
+**QUERIES**
+-----------
+
+*OPERATORS(LIKE)
+----------
+query 1: find customers by name  like rao?
+=======
+SELECT customer_id, full_name, phone, email
+FROM customers
+WHERE full_name LIKE '%Rao%';
+
+*CLAUSES
+---------
+query 2: active accounts with balance above 10,000?
+=======
+
+SELECT account_number, account_type, balance
+FROM accounts
+WHERE status = 'Active' AND balance > 10000
+ORDER BY balance DESC;
+
+*JOINS& CASE OPERATOR,CLAUSES
+-----------------------------
+query 3: total deposits and withdrawals recorded by account?
+=======
+SELECT a.account_number,
+       SUM(CASE WHEN t.transaction_type = 'Deposit' THEN t.amount ELSE 0 END) AS total_deposits,
+       SUM(CASE WHEN t.transaction_type = 'Withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals
+FROM accounts a
+LEFT JOIN transactions t ON t.account_id = a.account_id
+GROUP BY a.account_id, a.account_number
+ORDER BY a.account_number;
+
+
+*LEFT JOINS
+-----------
+
+query 4: transaction history for one account?
+=======
+
+SELECT t.transaction_id, a.account_number, t.transaction_type,
+       t.amount, t.transaction_time, t.reference_note
+FROM transactions t
+JOIN accounts a ON a.account_id = t.account_id
+WHERE a.account_number = '100000000001'
+ORDER BY t.transaction_time DESC;
+
+*VIEWS
+-------
+query 5: Display customer names, account numbers, balances, and branch names using a view?
+=======
+CREATE VIEW customer_account_view AS
+SELECT c.full_name,
+       a.account_number,
+       a.balance,
+       b.branch_name
+FROM customers c
+JOIN accounts a
+ON c.customer_id = a.customer_id
+JOIN branches b
+ON a.branch_id = b.branch_id;
+
+*INDEXES
+--------
+qurey 6 :  Create an index on account status?
+=======
+CREATE INDEX idx_account_status
+ON accounts(status);
+SELECT account_number, account_type, balance, status
+FROM accounts
+WHERE status = 'Active';
+
+*SUBQUERIES
+-----------
+query 7: Display the names of customers who have an account balance greater than ₹10,000 using a subquery?
+========
+
+SELECT full_name
+FROM customers
+WHERE customer_id IN (
+    SELECT customer_id
+    FROM accounts
+    WHERE balance > 10000
+);
+
+*STORE PROCEDURE
+----------------
+query 8: Create a stored procedure to display all active bank accounts?
+=======
+
+DELIMITER //
+
+CREATE PROCEDURE GetActiveAccounts()
+BEGIN
+    SELECT account_number, account_type, balance
+    FROM accounts
+    WHERE status = 'Active';
+END //
+
+DELIMITER ;
+
+CALL GetActiveAccounts();
+
+*TRIGGERS
+----------
+query 9:Create a trigger to prevent inserting a bank account with a negative balance?
+========
+DELIMITER //
+CREATE TRIGGER trg_check_balance
+BEFORE INSERT ON accounts
+FOR EACH ROW
+BEGIN
+    IF NEW.balance < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Balance cannot be negative';
+    END IF;
+END //
+
+DELIMITER ;
+
+*UNION
+------
+query 10 :Display all customer names and employee names in one list using UNION, UNION ALL, and ordering?
+========
+
+SELECT full_name AS person_name
+FROM customers
+
+UNION
+
+SELECT employee_name AS person_name
+FROM employees
+ORDER BY person_name;
+
+------------
+query 1: find customers by name  like rao?
+
+mysql> SELECT customer_id, full_name, phone, email
+    -> FROM customers
+    -> WHERE full_name LIKE '%Rao%';
+
+output:
+-------
++-------------+------------+------------+---------------------+
+| customer_id | full_name  | phone      | email               |
++-------------+------------+------------+---------------------+
+|           1 | Ananya Rao | 9000001101 | ananya@example.test |
++-------------+------------+------------+---------------------+
+query 2: active accounts with balance above 10,000?
+=======
+mysql> SELECT account_number, account_type, balance
+    -> FROM accounts
+    -> WHERE status = 'Active' AND balance > 10000
+    -> ORDER BY balance DESC;
++----------------+--------------+----------+
+| account_number | account_type | balance  |
++----------------+--------------+----------+
+| 200000000003   | Current      | 25000.00 |
+| 100000000001   | Savings      | 15000.00 |
++----------------+--------------+----------+
+query 3: total deposits and withdrawals recorded by account?
+=======
+
+SELECT a.account_number,
+    ->        SUM(CASE WHEN t.transaction_type = 'Deposit' THEN t.amount ELSE 0 END) AS total_deposits,
+    ->        SUM(CASE WHEN t.transaction_type = 'Withdrawal' THEN t.amount ELSE 0 END) AS total_withdrawals
+    -> FROM accounts a
+    -> LEFT JOIN transactions t ON t.account_id = a.account_id
+    -> GROUP BY a.account_id, a.account_number
+    -> ORDER BY a.account_number;
++----------------+----------------+-------------------+
+| account_number | total_deposits | total_withdrawals |
++----------------+----------------+-------------------+
+| 100000000001   |        5000.00 |           1000.00 |
+| 100000000002   |        2000.00 |              0.00 |
+| 100000000004   |           0.00 |              0.00 |
+| 200000000003   |       10000.00 |              0.00 |
++----------------+----------------+-------------------+
+query 4: transaction history for one account?
+=======
+
+     SELECT t.transaction_id, a.account_number, t.transaction_type,
+    -> t.amount, t.transaction_time, t.reference_note
+    -> FROM transactions t
+    -> JOIN accounts a ON a.account_id = t.account_id
+    -> WHERE a.account_number = '100000000001'
+    -> ORDER BY t.transaction_time DESC;
+Output:
+------
++----------------+----------------+------------------+---------+---------------------+----------------------+
+| transaction_id | account_number | transaction_type | amount  | transaction_time    | reference_note       |
++----------------+----------------+------------------+---------+---------------------+----------------------+
+|              2 | 100000000001   | Withdrawal       | 1000.00 | 2026-10-03 14:10:00 | ATM cash withdrawal  |
+|              1 | 100000000001   | Deposit          | 5000.00 | 2026-10-01 09:30:00 | Opening demo deposit |
++----------------+----------------+------------------+---------+---------------------+----------------------+
+
+query 5: Display customer names, account numbers, balances, and branch names using a view?
+=======
+
+CREATE VIEW customer_account_view AS
+SELECT c.full_name,
+       a.account_number,
+       a.balance,
+       b.branch_name
+FROM customers c
+JOIN accounts a
+ON c.customer_id = a.customer_id
+JOIN branches b
+ON a.branch_id = b.branch_id;
+
+Output
+------
+mysql> SELECT*FROM CUSTOMER_ACCOUNT_VIEW;
++-------------+----------------+----------+---------------------+
+| full_name   | account_number | balance  | branch_name         |
++-------------+----------------+----------+---------------------+
+| Ananya Rao  | 100000000001   | 15000.00 | Central City Branch |
+| Rahul Kumar | 100000000002   |  8200.00 | Coastal Branch      |
+| Meera Devi  | 200000000003   | 25000.00 | Central City Branch |
+| Ananya Rao  | 100000000004   |  3000.00 | Central City Branch |
++-------------+----------------+----------+---------------------+
+qurey 6 :  Create an index on account status?
+=======
+mysql> CREATE INDEX idx_account_status
+    -> ON accounts(status);
+
+Output:
+-------
+
+mysql> SELECT account_number, account_type, balance, status
+    -> FROM accounts
+    -> WHERE status = 'Active';
+Output:
+-------
++----------------+--------------+----------+--------+
+| account_number | account_type | balance  | status |
++----------------+--------------+----------+--------+
+| 100000000001   | Savings      | 15000.00 | Active |
+| 100000000002   | Savings      |  8200.00 | Active |
+| 200000000003   | Current      | 25000.00 | Active |
++----------------+--------------+----------+--------+
+
+query 7: Display the names of customers who have an account balance greater than ₹10,000 using a subquery?
+========
+mysql> SELECT full_name
+    -> FROM customers
+    -> WHERE customer_id IN (
+    ->     SELECT customer_id
+    ->     FROM accounts
+    ->     WHERE balance > 10000
+    -> );
+Output:
+-------
++------------+
+| full_name  |
++------------+
+| Ananya Rao |
+| Meera Devi |
++------------+
+
+query 8: Create a stored procedure to display all active bank accounts?
+=======
+mysql> DELIMITER //
+    -> CREATE PROCEDURE GetActiveAccounts()
+    -> BEGIN
+    ->     SELECT account_number, account_type, balance
+    ->     FROM accounts
+    ->     WHERE status = 'Active';
+    -> END //
+Output:
+-------
+mysql> DELIMITER ;
+       CALL GetActiveAccounts();
++----------------+--------------+----------+
+| account_number | account_type | balance  |
++----------------+--------------+----------+
+| 100000000001   | Savings      | 15000.00 |
+| 100000000002   | Savings      |  8200.00 |
+| 200000000003   | Current      | 25000.00 |
++----------------+--------------+----------+
+
+query 9 :Display all customer names and employee names in one list using UNION, UNION ALL, and ordering?
+========
+
+mysql> SELECT full_name AS person_name
+    -> FROM customers
+    ->
+    -> UNION
+    ->
+    -> SELECT employee_name AS person_name
+    -> FROM employees
+    -> ORDER BY person_name;
+Output:
+-------
++-------------+
+| person_name |
++-------------+
+| Ananya Rao  |
+| K. Arjun    |
+| Meera Devi  |
+| R. Naveen   |
+| Rahul Kumar |
+| S. Priya    |
++-------------+
+6 rows in set (0.00 sec)
+
+query 10:Create a trigger to prevent inserting a bank account with a negative balance?
+========
+
+DELIMITER //
+CREATE TRIGGER trg_check_balance
+BEFORE INSERT ON accounts
+FOR EACH ROW
+BEGIN
+    IF NEW.balance < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Balance cannot be negative';
+    END IF;
+END //
+
+mysql->DELIMITER ;
+     -> INSERT INTO accounts(account_id,customer_id,branch_id,account_number,account_type,balance,status,opened_on)VALUES
+     -> (5,3,1,'100000000005','savings',9000.00,'Frozen','2026-08-24')
+
+Output:
+-------
+mysql> select*from accounts;
++------------+-------------+-----------+----------------+--------------+----------+--------+------------+
+| account_id | customer_id | branch_id | account_number | account_type | balance  | status | opened_on  |
++------------+-------------+-----------+----------------+--------------+----------+--------+------------+
+|          1 |           1 |         1 | 100000000001   | Savings      | 15000.00 | Active | 2025-02-10 |
+|          2 |           2 |         2 | 100000000002   | Savings      |  8200.00 | Active | 2025-05-18 |
+|          3 |           3 |         1 | 200000000003   | Current      | 25000.00 | Active | 2024-11-03 |
+|          4 |           1 |         1 | 100000000004   | Savings      |  3000.00 | Frozen | 2026-01-12 |
+|          5 |           3 |         1 | 100000000005   | Savings      |  9000.00 | Frozen | 2026-08-24 |
++------------+-------------+-----------+----------------+--------------+----------+--------+------------+
+
+
+
+
+
+
+
+
