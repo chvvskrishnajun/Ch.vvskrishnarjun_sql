@@ -83,6 +83,22 @@ The SQL script includes queries to:
 - The SQL script records transactions and transfers, but it does not implement a complete, secure banking transaction workflow.
 - No user authentication, authorization, encryption, or production-grade audit controls are included.
 
-*Author:
+Future Enhancements – Banking Management System:
+-----------------------------------------------
+1. Online Banking: Develop a website or mobile application that allows customers to access their accounts online.
+   --------------
+2. Secure Login System: Add usernames, passwords, and role-based access for customers, employees, and administrators.
+   --------------------
+3. Money Transfer: Improve the existing transfers table to support secure transfers between accounts with proper balance validation.
+   --------------
+4. Loan Management: Add a loan module to manage loan applications, approvals, repayments, and interest rates.
+   ---------------
+5. ATM Management: Add ATM withdrawals, cash deposits, and ATM transaction tracking.
+   ---------------
+*Conclusion: 
+ -----------
+These enhancements can make the Banking Management System more secure, reliable, and user-friendly. In the future, the system can be developed into a complete online banking application with advanced features.
+
+Author:
 --------
-College SQL Project — Banking Management System
+SQL Project — Banking Management System
